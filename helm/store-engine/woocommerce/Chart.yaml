@@ -1,0 +1,21 @@
+apiVersion: v2
+name: store-instance
+description: A Helm chart for deploying WooCommerce store instances
+type: application
+version: 1.0.0
+appVersion: "6.4"
+keywords:
+  - woocommerce
+  - wordpress
+  - e-commerce
+  - store-platform
+home: https://github.com/anomalyco/store-platform
+sources:
+  - https://github.com/anomalyco/store-platform
+maintainers:
+  - name: Platform Team
+    email: platform@example.com
+dependencies: []
+annotations:
+  category: E-commerce
+  store.platform.io/engine: woocommerce

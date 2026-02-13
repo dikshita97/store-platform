@@ -1,0 +1,225 @@
+# Store Platform Helm Chart - Default Values
+# Reference: HELM_CHART_DESIGN.md, TECHNICAL_REQUIREMENTS.md
+
+global:
+  # Environment: local or production
+  environment: local
+  # Base domain for ingress (use nip.io for local)
+  baseDomain: 127.0.0.1.nip.io
+  # Storage class for PVCs
+  storageClass: standard
+  # Docker registry
+  imageRegistry: ""
+  # Image pull secrets
+  imagePullSecrets: []
+  # Cert-manager issuer
+  certIssuer: selfsigned
+
+# Dashboard Frontend Configuration
+dashboard:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: store-platform/dashboard
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "{{ .Values.global.certIssuer }}"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    host: "dashboard.{{ .Values.global.baseDomain }}"
+    tls:
+      enabled: true
+      secretName: dashboard-tls
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  env:
+    API_URL: "https://api.{{ .Values.global.baseDomain }}"
+    ENVIRONMENT: "{{ .Values.global.environment }}"
+
+# Backend API / Provisioner Configuration
+api:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: store-platform/api
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "{{ .Values.global.certIssuer }}"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    host: "api.{{ .Values.global.baseDomain }}"
+    tls:
+      enabled: true
+      secretName: api-tls
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  # Database configuration for provisioner state
+  database:
+    type: postgres
+    host: store-platform-postgres
+    port: 5432
+    name: provisioner
+    user: provisioner
+    password: ""  # Auto-generated if empty
+    existingSecret: ""
+  
+  # Redis for job queue
+  redis:
+    enabled: true
+    host: store-platform-redis
+    port: 6379
+  
+  env:
+    LOG_LEVEL: info
+    NODE_ENV: production
+    HELM_CHART_PATH: /charts/helm/store-engine
+    MAX_CONCURRENT_PROVISIONING: "5"
+    PROVISIONING_TIMEOUT: "600"
+
+# PostgreSQL Sub-chart Configuration (Bitnami)
+postgresql:
+  enabled: true
+  auth:
+    username: provisioner
+    database: provisioner
+    existingSecret: ""
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: password
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: "{{ .Values.global.storageClass }}"
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 500m
+      requests:
+        memory: 256Mi
+        cpu: 250m
+
+# Redis Sub-chart Configuration (Bitnami)
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: "{{ .Values.global.storageClass }}"
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 250m
+      requests:
+        memory: 128Mi
+        cpu: 100m
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: store-platform
+
+# RBAC
+rbac:
+  create: true
+
+# Pod Security Context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Container Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  seccompProfile:
+    type: RuntimeDefault
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  failureThreshold: 3
+
+# Autoscaling (disabled by default)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Extra volumes
+extraVolumes: []
+
+# Extra volume mounts
+extraVolumeMounts: []

@@ -1,0 +1,32 @@
+{{/* Dashboard Ingress */}}
+{{- if and .Values.dashboard.enabled .Values.dashboard.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "store-platform.dashboard.fullname" . }}
+  labels:
+    {{- include "store-platform.dashboard.labels" . | nindent 4 }}
+  {{- with .Values.dashboard.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.dashboard.ingress.className }}
+  {{- if .Values.dashboard.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.dashboard.ingress.host | quote }}
+      secretName: {{ .Values.dashboard.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.dashboard.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "store-platform.dashboard.fullname" . }}
+                port:
+                  number: {{ .Values.dashboard.service.port }}
+{{- end }}

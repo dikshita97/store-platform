@@ -1,0 +1,20 @@
+{{/* WordPress Uploads PVC */}}
+{{- if .Values.wordpress.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "store-instance.wordpress.fullname" . }}-uploads
+  labels:
+    {{- include "store-instance.wordpress.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.wordpress.persistence.accessMode }}
+  {{- if .Values.wordpress.persistence.storageClass }}
+  storageClassName: {{ .Values.wordpress.persistence.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.wordpress.persistence.size }}
+{{- end }}

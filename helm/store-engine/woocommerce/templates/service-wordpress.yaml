@@ -1,0 +1,17 @@
+{{/* WordPress Service */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "store-instance.wordpress.fullname" . }}
+  labels:
+    {{- include "store-instance.wordpress.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.wordpress.type }}
+  ports:
+    - port: {{ .Values.service.wordpress.port }}
+      targetPort: {{ .Values.service.wordpress.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "store-instance.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: wordpress

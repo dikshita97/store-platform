@@ -1,0 +1,112 @@
+# Store Platform Overview Dashboard
+# This dashboard provides a high-level view of the store provisioning platform
+
+apiVersion: 1
+providers:
+  - name: 'Store Platform Overview'
+    orgId: 1
+    folder: 'Store Platform'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+
+dashboards:
+  - title: "Store Platform Overview"
+    uid: store-platform-overview
+    time:
+      from: now-1h
+      to: now
+    refresh: 30s
+    panels:
+      - id: 1
+        title: "Active Stores"
+        type: stat
+        targets:
+          - expr: 'store_platform_active_stores_total'
+        gridPos: { x: 0, y: 0, w: 4, h: 4 }
+        
+      - id: 2
+        title: "Provisioning Rate"
+        type: graph
+        targets:
+          - expr: 'rate(store_platform_store_operations_total{operation="create"}[5m])'
+        gridPos: { x: 4, y: 0, w: 8, h: 4 }
+        
+      - id: 3
+        title: "API Request Rate"
+        type: graph
+        targets:
+          - expr: 'rate(store_platform_http_requests_total[5m])'
+        gridPos: { x: 12, y: 0, w: 12, h: 4 }
+        
+      - id: 4
+        title: "API Latency (95th percentile)"
+        type: graph
+        targets:
+          - expr: 'histogram_quantile(0.95, rate(store_platform_http_request_duration_seconds_bucket[5m]))'
+        gridPos: { x: 0, y: 4, w: 12, h: 6 }
+        
+      - id: 5
+        title: "Error Rate"
+        type: graph
+        targets:
+          - expr: 'rate(store_platform_errors_total[5m])'
+        gridPos: { x: 12, y: 4, w: 12, h: 6 }
+        
+      - id: 6
+        title: "Stores by Engine"
+        type: piechart
+        targets:
+          - expr: 'store_platform_active_stores_total by (engine)'
+        gridPos: { x: 0, y: 10, w: 6, h: 6 }
+        
+      - id: 7
+        title: "Stores by Plan"
+        type: piechart
+        targets:
+          - expr: 'store_platform_active_stores_total by (plan)'
+        gridPos: { x: 6, y: 10, w: 6, h: 6 }
+        
+      - id: 8
+        title: "Provisioning Duration"
+        type: graph
+        targets:
+          - expr: 'histogram_quantile(0.95, rate(store_platform_provisioning_duration_seconds_bucket[15m]))'
+        gridPos: { x: 12, y: 10, w: 12, h: 6 }
+
+  - title: "Store Details"
+    uid: store-details
+    time:
+      from: now-6h
+      to: now
+    refresh: 1m
+    panels:
+      - id: 1
+        title: "Store Status Distribution"
+        type: piechart
+        targets:
+          - expr: 'store_platform_active_stores_total by (status)'
+        gridPos: { x: 0, y: 0, w: 8, h: 6 }
+        
+      - id: 2
+        title: "Recent Store Operations"
+        type: table
+        targets:
+          - expr: 'store_platform_store_operations_total[1h]'
+        gridPos: { x: 8, y: 0, w: 16, h: 6 }
+        
+      - id: 3
+        title: "Helm Operations"
+        type: graph
+        targets:
+          - expr: 'rate(store_platform_helm_operations_total[5m])'
+        gridPos: { x: 0, y: 6, w: 12, h: 6 }
+        
+      - id: 4
+        title: "Job Queue Size"
+        type: graph
+        targets:
+          - expr: 'store_platform_job_queue_size'
+        gridPos: { x: 12, y: 6, w: 12, h: 6 }

@@ -1,0 +1,97 @@
+{{/* WordPress Deployment */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "store-instance.wordpress.fullname" . }}
+  labels:
+    {{- include "store-instance.wordpress.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "store-instance.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: wordpress
+  template:
+    metadata:
+      labels:
+        {{- include "store-instance.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: wordpress
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.podSecurityContext.runAsNonRoot }}
+        fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "store-instance.mysql.fullname" . }} 3306; do
+                echo "Waiting for database..."
+                sleep 2
+              done
+              echo "Database is ready!"
+      containers:
+        - name: wordpress
+          image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
+          imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ include "store-instance.mysql.fullname" . }}:3306"
+            - name: WORDPRESS_DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ .Values.database.user | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "store-instance.mysql.fullname" . }}-credentials
+                  key: password
+            - name: WORDPRESS_TABLE_PREFIX
+              value: "wp_"
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('WP_HOME', 'https://{{ include "store-instance.ingress.host" . }}');
+                define('WP_SITEURL', 'https://{{ include "store-instance.ingress.host" . }}');
+                define('FS_METHOD', 'direct');
+                define('AUTH_KEY', '{{ include "store-instance.wordpress.authKey" . }}');
+                define('SECURE_AUTH_KEY', '{{ include "store-instance.wordpress.secureAuthKey" . }}');
+                define('LOGGED_IN_KEY', '{{ include "store-instance.wordpress.loggedInKey" . }}');
+                define('NONCE_KEY', '{{ include "store-instance.wordpress.nonceKey" . }}');
+                define('AUTH_SALT', '{{ include "store-instance.wordpress.authSalt" . }}');
+                define('SECURE_AUTH_SALT', '{{ include "store-instance.wordpress.secureAuthSalt" . }}');
+                define('LOGGED_IN_SALT', '{{ include "store-instance.wordpress.loggedInSalt" . }}');
+                define('NONCE_SALT', '{{ include "store-instance.wordpress.nonceSalt" . }}');
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: uploads
+              mountPath: /var/www/html/wp-content/uploads
+          resources:
+            {{- include "store-instance.resources" . | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.wordpress.livenessProbe.httpGet.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.wordpress.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.wordpress.readinessProbe.httpGet.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.wordpress.readinessProbe.failureThreshold }}
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.containerSecurityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "store-instance.wordpress.fullname" . }}-uploads

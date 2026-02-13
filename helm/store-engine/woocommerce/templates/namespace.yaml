@@ -1,0 +1,16 @@
+{{/* Namespace for the store */}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "store-instance.labels" . | nindent 4 }}
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+    store.platform.io/created-by: {{ .Values.store.createdBy | quote }}
+    store.platform.io/store-id: {{ .Values.store.id | quote }}
+    store.platform.io/store-name: {{ .Values.store.name | quote }}
+    store.platform.io/engine: {{ .Values.store.engine | quote }}
+    store.platform.io/plan: {{ .Values.store.plan | quote }}

@@ -1,0 +1,66 @@
+# Default values for medusa-store-engine
+# This is a placeholder chart for Round 2 implementation
+
+# Store configuration
+store:
+  name: ""
+  domain: "127.0.0.1.nip.io"
+
+# Medusa placeholder configuration
+# NOTE: This is a stub implementation. Full MedusaJS support coming in Round 2.
+medusa:
+  enabled: false
+  message: "MedusaJS support coming in Round 2"
+  documentation: "https://docs.medusajs.com"
+
+# PostgreSQL configuration (for future use)
+postgresql:
+  enabled: false
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# Redis configuration (for future use)
+redis:
+  enabled: false
+  image:
+    repository: redis
+    tag: "7-alpine"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "selfsigned-issuer"
+  tls:
+    enabled: true
+
+# Placeholder deployment
+placeholder:
+  enabled: true
+  image:
+    repository: nginx
+    tag: "alpine"
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "50m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"
+
+# Resource quotas (for future use)
+resources:
+  basic:
+    memory: "512Mi"
+    cpu: "500m"
+  standard:
+    memory: "1Gi"
+    cpu: "1000m"
+  premium:
+    memory: "2Gi"
+    cpu: "2000m"

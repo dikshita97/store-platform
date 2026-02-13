@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wordpress-pdb
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: wordpress
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: wordpress
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mysql-pdb
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mysql

@@ -1,0 +1,127 @@
+# Store Platform - Production Values
+# Optimized for k3s VPS production deployments
+# Reference: TECHNICAL_REQUIREMENTS.md, HELM_CHART_DESIGN.md, SECURITY_AND_SECRETS.md
+
+global:
+  environment: production
+  baseDomain: stores.example.com  # Override with your domain
+  storageClass: fast-ssd  # Use SSD storage class
+  certIssuer: letsencrypt-prod  # Production Let's Encrypt
+  imagePullSecrets:
+    - name: ghcr-registry-secret
+
+# Dashboard - Multiple replicas for HA
+dashboard:
+  replicaCount: 2
+  
+  image:
+    pullPolicy: Always
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+
+# API - Multiple replicas with more resources
+api:
+  replicaCount: 3
+  
+  image:
+    pullPolicy: Always
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "200"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  
+  env:
+    LOG_LEVEL: info
+    DEBUG: "false"
+    MAX_CONCURRENT_PROVISIONING: "10"
+
+# PostgreSQL - Production configuration
+postgresql:
+  auth:
+    existingSecret: "postgres-credentials"  # Use external secret
+  primary:
+    persistence:
+      size: 20Gi
+      storageClass: fast-ssd
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 1000m
+      requests:
+        memory: 512Mi
+        cpu: 500m
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+# Redis - Production configuration
+redis:
+  auth:
+    enabled: true
+    existingSecret: "redis-credentials"
+    existingSecretPasswordKey: "password"
+  master:
+    persistence:
+      size: 5Gi
+      storageClass: fast-ssd
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 500m
+      requests:
+        memory: 256Mi
+        cpu: 250m
+
+# Enable autoscaling for production
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Enable Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Pod affinity for spreading across nodes
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - store-platform
+          topologyKey: kubernetes.io/hostname

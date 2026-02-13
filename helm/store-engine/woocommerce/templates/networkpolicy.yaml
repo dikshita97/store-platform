@@ -1,0 +1,130 @@
+{{ if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.store.name | default .Release.Name }}-default-deny
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: store-network-policy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  # Default deny all ingress and egress traffic
+  # Specific policies below will allow required traffic
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.store.name | default .Release.Name }}-allow-ingress
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: store-network-policy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: wordpress
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow traffic from monitoring namespace (if enabled)
+    {{ if .Values.networkPolicy.allowMonitoring }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    {{ end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.store.name | default .Release.Name }}-allow-mysql
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: store-network-policy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow MySQL traffic only from WordPress pods in the same namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: wordpress
+      ports:
+        - protocol: TCP
+          port: 3306
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.store.name | default .Release.Name }}-allow-egress
+  namespace: {{ .Values.store.name | default .Release.Name }}
+  labels:
+    app.kubernetes.io/name: store-network-policy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTP/HTTPS traffic to external services (WordPress plugins, updates, etc.)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow MySQL traffic within namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+    {{ if .Values.networkPolicy.allowExternalIPs }}
+    # Allow specific external IPs if needed (e.g., API endpoints)
+    - to:
+        {{ range .Values.networkPolicy.allowedExternalIPs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{ end }}
+    {{ end }}
+{{ end }}

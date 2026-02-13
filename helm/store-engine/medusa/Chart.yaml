@@ -1,0 +1,22 @@
+apiVersion: v2
+name: medusa-store-engine
+description: MedusaJS Store Engine - Placeholder for Round 2 Implementation
+type: application
+version: 0.1.0
+appVersion: "2.0.0"
+keywords:
+  - medusa
+  - medusajs
+  - ecommerce
+  - store-engine
+home: https://medusajs.com
+sources:
+  - https://github.com/medusajs/medusa
+maintainers:
+  - name: Store Platform Team
+    email: platform@example.com
+annotations:
+  category: E-Commerce
+  store-platform/engine-type: medusa
+  store-platform/status: placeholder
+  store-platform/round: "2"

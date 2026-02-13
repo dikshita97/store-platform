@@ -1,0 +1,25 @@
+{
+  "store": {
+    "name": "e2e-test-store",
+    "engine": "woocommerce",
+    "plan": "basic"
+  },
+  "customer": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "address": "123 Test Street",
+    "city": "Test City",
+    "postcode": "12345",
+    "phone": "1234567890"
+  },
+  "product": {
+    "name": "Test Product",
+    "price": 19.99,
+    "description": "A test product for E2E testing"
+  },
+  "wordpress": {
+    "adminUser": "admin",
+    "adminPassword": "changeme"
+  }
+}

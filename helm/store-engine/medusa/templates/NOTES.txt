@@ -1,0 +1,48 @@
+
+MEDUSAJS STORE ENGINE - PLACEHOLDER DEPLOYMENT
+==============================================
+
+This is a placeholder Helm chart for MedusaJS store engine support.
+
+Status: COMING IN ROUND 2
+-------------------------
+MedusaJS support is planned for Round 2 implementation. This placeholder
+deployment creates a minimal namespace and placeholder resources for
+architecture completeness.
+
+What's Included:
+----------------
+1. Namespace for store isolation
+2. Placeholder deployment (nginx:alpine)
+3. ConfigMap with coming-soon page
+4. Service for placeholder
+
+What's NOT Included (Round 2):
+------------------------------
+- MedusaJS server deployment
+- PostgreSQL database
+- Redis cache
+- Elasticsearch
+- File storage (MinIO/S3)
+- Admin dashboard
+- Storefront
+
+For WooCommerce stores (fully implemented):
+-------------------------------------------
+Use the WooCommerce store engine instead:
+
+  helm install my-store helm/store-engine/woocommerce \
+    --set store.name=my-store \
+    --set store.domain=example.com
+
+Documentation:
+--------------
+- MedusaJS: https://docs.medusajs.com
+- WooCommerce: https://woocommerce.com
+- Store Platform: See docs/ directory
+
+Release Information:
+--------------------
+Release Name: {{ .Release.Name }}
+Namespace: {{ .Values.store.name | default .Release.Name }}
+Status: Placeholder

@@ -1,0 +1,252 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # Phase 0 & 1: Lint and validate Helm charts
+  helm-lint:
+    name: Helm Chart Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.13.0"
+
+      - name: Lint Helm charts
+        run: |
+          helm lint helm/dashboard
+          helm lint helm/store-engine/woocommerce
+          helm lint helm/store-engine/medusa || true
+
+  # Phase 3: Backend tests
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test:coverage
+
+  # Phase 4: Frontend tests
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/dashboard
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+  # Phase 7: Build and push images
+  build-and-push:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: [helm-lint, test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Dashboard
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/dashboard
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:latest
+
+      - name: Build and push API
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:latest
+
+  # Phase 8: Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Run Trivy vulnerability scanner on Dashboard
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-dashboard-results.sarif'
+
+      - name: Run Trivy vulnerability scanner on API
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-api-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-dashboard-results.sarif'
+
+      - name: Upload Trivy API scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-api-results.sarif'
+
+  # Phase 6 & 7: E2E tests in k3d
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js for E2E tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: e2e/tests/package.json
+
+      - name: Setup k3d
+        uses: AbsaOSS/k3d-action@v2
+        with:
+          cluster-name: store-platform-ci
+          args: "--agents 1 --no-lb --k3s-arg '--disable=traefik@server:0'"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.13.0"
+
+      - name: Install infrastructure
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+          kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=180s
+
+      - name: Deploy platform
+        run: |
+          helm install store-platform helm/dashboard \
+            --namespace store-platform --create-namespace \
+            --set dashboard.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard \
+            --set dashboard.image.tag=${{ github.sha }} \
+            --set api.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api \
+            --set api.image.tag=${{ github.sha }} \
+            -f helm/dashboard/values-local.yaml \
+            --wait --timeout 5m
+
+      - name: Wait for services
+        run: |
+          kubectl wait --namespace store-platform --for=condition=ready pod --selector=app.kubernetes.io/name=dashboard --timeout=180s
+          kubectl wait --namespace store-platform --for=condition=ready pod --selector=app.kubernetes.io/name=api --timeout=180s
+          kubectl port-forward -n store-platform svc/dashboard 5173:80 &
+          kubectl port-forward -n store-platform svc/api 8080:80 &
+          sleep 10
+
+      - name: Install E2E dependencies
+        working-directory: e2e/tests
+        run: npm ci
+
+      - name: Run E2E tests
+        working-directory: e2e/tests
+        env:
+          CYPRESS_BASE_URL: http://localhost:5173
+          CYPRESS_API_URL: http://localhost:8080
+          CYPRESS_STORE_DOMAIN: 127.0.0.1.nip.io
+        run: |
+          npx cypress run --headless --browser chrome
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cypress-screenshots
+          path: e2e/tests/cypress/screenshots
+          retention-days: 7
+
+      - name: Upload videos
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cypress-videos
+          path: e2e/tests/cypress/videos
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cypress-results
+          path: e2e/tests/cypress/results
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: k3d cluster delete store-platform-ci

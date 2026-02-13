@@ -1,0 +1,52 @@
+Thank you for installing the WooCommerce Store!
+
+## Store Details
+
+Store Name: {{ .Values.store.name }}
+Store ID: {{ .Values.store.id }}
+Engine: WooCommerce
+Plan: {{ .Values.store.plan }}
+
+## Access Information
+
+Store URL: https://{{ include "store-instance.ingress.host" . }}
+Admin URL: https://{{ include "store-instance.ingress.host" . }}/wp-admin
+
+Admin Credentials:
+  Username: {{ .Values.wordpress.admin.username }}
+  Password: (see secret: {{ include "store-instance.wordpress.fullname" . }}-credentials)
+
+## Resources
+
+Namespace: {{ .Release.Namespace }}
+MySQL StatefulSet: {{ include "store-instance.mysql.fullname" . }}
+WordPress Deployment: {{ include "store-instance.wordpress.fullname" . }}
+
+## Useful Commands
+
+# Check pod status
+kubectl get pods -n {{ .Release.Namespace }}
+
+# View WordPress logs
+kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "store-instance.wordpress.fullname" . }} -f
+
+# View MySQL logs
+kubectl logs -n {{ .Release.Namespace }} statefulset/{{ include "store-instance.mysql.fullname" . }} -f
+
+# Get admin password
+kubectl get secret -n {{ .Release.Namespace }} {{ include "store-instance.wordpress.fullname" . }}-credentials -o jsonpath='{.data.admin-password}' | base64 -d
+
+## Next Steps
+
+1. Wait for all pods to be ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=wordpress -n {{ .Release.Namespace }} --timeout=300s
+
+2. Access your store at:
+   https://{{ include "store-instance.ingress.host" . }}
+
+3. Complete the WooCommerce setup wizard at:
+   https://{{ include "store-instance.ingress.host" . }}/wp-admin
+
+## Support
+
+For issues and questions, please refer to the Store Platform documentation.

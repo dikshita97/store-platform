@@ -1,0 +1,177 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: store-platform-alerts
+  namespace: observability
+  labels:
+    app: prometheus
+    release: observability
+spec:
+  groups:
+    # Platform API Alerts
+    - name: store-platform-api
+      rules:
+        - alert: APIHighErrorRate
+          expr: rate(store_platform_http_requests_total{status_code=~"5.."}[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate in API"
+            description: "API error rate is {{ $value }} errors per second"
+            
+        - alert: APIHighLatency
+          expr: histogram_quantile(0.95, rate(store_platform_http_request_duration_seconds_bucket[5m])) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "API latency is high"
+            description: "95th percentile latency is {{ $value }}s"
+            
+        - alert: APIDown
+          expr: up{job="store-platform-api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "API is down"
+            description: "API has been down for more than 1 minute"
+            
+        - alert: DatabaseConnectionPoolExhausted
+          expr: store_platform_db_connection_pool_size > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Database connection pool nearly exhausted"
+            description: "Connection pool is at {{ $value }}% capacity"
+
+    # Store Provisioning Alerts
+    - name: store-provisioning
+      rules:
+        - alert: StoreProvisioningFailed
+          expr: rate(store_platform_store_operations_total{operation="create",status="failed"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Store provisioning failed"
+            description: "Store creation has failed"
+            
+        - alert: StoreProvisioningSlow
+          expr: histogram_quantile(0.95, rate(store_platform_provisioning_duration_seconds_bucket[15m])) > 600
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Store provisioning is slow"
+            description: "95th percentile provisioning time is {{ $value }}s"
+            
+        - alert: HighNumberOfProvisioningJobs
+          expr: store_platform_job_queue_size{job_type="provision"} > 10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High number of provisioning jobs"
+            description: "{{ $value }} provisioning jobs in queue"
+
+    # Kubernetes Cluster Alerts
+    - name: kubernetes
+      rules:
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kubernetes node is not ready"
+            description: "Node {{ $labels.node }} has been not ready for more than 5 minutes"
+            
+        - alert: PodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod is crash looping"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently"
+            
+        - alert: HighMemoryUsage
+          expr: (container_memory_usage_bytes{container!=""} / container_spec_memory_limit_bytes{container!=""}) > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory"
+            
+        - alert: HighCPUUsage
+          expr: (rate(container_cpu_usage_seconds_total{container!=""}[5m])) > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of CPU"
+            
+        - alert: PersistentVolumeFillingUp
+          expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.15
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Persistent volume is filling up"
+            description: "Volume {{ $labels.persistentvolumeclaim }} is more than 85% full"
+            
+        - alert: PersistentVolumeFull
+          expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.05
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Persistent volume is nearly full"
+            description: "Volume {{ $labels.persistentvolumeclaim }} is more than 95% full"
+
+    # Store Health Alerts
+    - name: store-health
+      rules:
+        - alert: StoreDown
+          expr: up{job=~"store-.*-wordpress"} == 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Store is down"
+            description: "Store {{ $labels.instance }} has been down for more than 2 minutes"
+            
+        - alert: LowActiveStores
+          expr: store_platform_active_stores_total < 1
+          for: 1h
+          labels:
+            severity: info
+          annotations:
+            summary: "No active stores"
+            description: "There are no active stores in the platform"
+
+    # Certificate Alerts
+    - name: certificates
+      rules:
+        - alert: CertificateExpiringSoon
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "SSL certificate expiring soon"
+            description: "Certificate {{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            
+        - alert: CertificateExpired
+          expr: certmanager_certificate_expiration_timestamp_seconds < time()
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "SSL certificate has expired"
+            description: "Certificate {{ $labels.name }} has expired"

@@ -1,0 +1,87 @@
+{{/* MySQL StatefulSet */}}
+{{- if .Values.database.enabled | default true }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "store-instance.mysql.fullname" . }}
+  labels:
+    {{- include "store-instance.mysql.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "store-instance.mysql.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "store-instance.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mysql
+  template:
+    metadata:
+      labels:
+        {{- include "store-instance.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mysql
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: mysql
+          image: "{{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}"
+          imagePullPolicy: {{ .Values.database.image.pullPolicy }}
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "store-instance.mysql.fullname" . }}-credentials
+                  key: root-password
+            - name: MYSQL_DATABASE
+              value: {{ .Values.database.name | quote }}
+            - name: MYSQL_USER
+              value: {{ .Values.database.user | quote }}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "store-instance.mysql.fullname" . }}-credentials
+                  key: password
+          ports:
+            - containerPort: 3306
+              name: mysql
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          resources:
+            {{- include "store-instance.database.resources" . | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+            initialDelaySeconds: {{ .Values.database.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.database.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.database.livenessProbe.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+            initialDelaySeconds: {{ .Values.database.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.database.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.database.readinessProbe.failureThreshold }}
+          securityContext:
+            allowPrivilegeEscalation: false
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.database.persistence.accessMode }}
+        {{- if .Values.database.persistence.storageClass }}
+        storageClassName: {{ .Values.database.persistence.storageClass }}
+        {{- else if .Values.global.storageClass }}
+        storageClassName: {{ .Values.global.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.persistence.size }}
+{{- end }}

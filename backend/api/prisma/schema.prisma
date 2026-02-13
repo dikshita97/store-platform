@@ -1,0 +1,116 @@
+// Prisma Schema for Store Platform API
+// Reference: TECHNICAL_REQUIREMENTS.md, ARCHITECTURE.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Store model - tracks all provisioned stores
+model Store {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String?
+  description String?
+  
+  // Store configuration
+  engine      String   // woocommerce, medusa
+  plan        String   @default("basic") // basic, standard, premium
+  
+  // Status tracking
+  status      String   @default("pending") // pending, provisioning, running, failed, deleting
+  statusMessage String?
+  
+  // URLs
+  url         String?  // Storefront URL
+  adminUrl    String?  // Admin panel URL
+  
+  // Kubernetes metadata
+  namespace   String?
+  helmRelease String?
+  
+  // Credentials (stored as references to secrets, not actual values)
+  adminUsername String?
+  adminPasswordSecret String?
+  
+  // Resource tracking
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  
+  // Relationships
+  events      StoreEvent[]
+  jobs        StoreJob[]
+  
+  // Audit
+  createdBy   String?
+  
+  @@index([status])
+  @@index([createdAt])
+  @@index([engine])
+  @@map("stores")
+}
+
+// Store events - audit log of all store activities
+model StoreEvent {
+  id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  eventType String   // created, provisioning_started, provisioning_completed, failed, deleted
+  message   String?
+  
+  metadata  Json?    // Additional event data
+  
+  createdAt DateTime @default(now())
+  
+  @@index([storeId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("store_events")
+}
+
+// Store jobs - tracks async provisioning/deletion jobs
+model StoreJob {
+  id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  jobType   String   // provision, delete
+  status    String   @default("pending") // pending, running, completed, failed
+  
+  // Progress tracking
+  progress  Int      @default(0) // 0-100
+  currentStep String?
+  
+  // Error tracking
+  error     String?
+  errorCode String?
+  
+  // Timing
+  startedAt DateTime?
+  completedAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([storeId])
+  @@index([status])
+  @@index([jobType])
+  @@map("store_jobs")
+}
+
+// System settings - global configuration
+model SystemSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+  
+  updatedAt DateTime @updatedAt
+  
+  @@map("system_settings")
+}

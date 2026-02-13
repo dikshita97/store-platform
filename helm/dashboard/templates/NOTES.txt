@@ -1,0 +1,46 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your Store Provisioning Platform is being deployed!
+
+## Access Points
+
+{{- if .Values.dashboard.enabled }}
+Dashboard: https://{{ .Values.dashboard.ingress.host }}
+{{- end }}
+{{- if .Values.api.enabled }}
+API: https://{{ .Values.api.ingress.host }}
+{{- end }}
+
+## Next Steps
+
+1. Wait for all pods to be ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name={{ include "store-platform.name" . }} -n {{ .Release.Namespace }} --timeout=300s
+
+2. Verify ingress is working:
+   curl -k https://{{ .Values.api.ingress.host }}/health/ready
+
+3. Create your first store:
+   curl -X POST https://{{ .Values.api.ingress.host }}/api/v1/stores \
+     -H "Content-Type: application/json" \
+     -d '{"name":"my-first-store","engine":"woocommerce"}'
+
+## Useful Commands
+
+# Check pod status
+kubectl get pods -n {{ .Release.Namespace }}
+
+# View logs
+kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=api -f
+
+# List all stores
+kubectl get namespaces -l app.kubernetes.io/part-of=store-platform
+
+## Documentation
+
+- Technical Requirements: /docs/TECHNICAL_REQUIREMENTS.md
+- Architecture: /docs/ARCHITECTURE.md
+- Runbook: /docs/RUNBOOK.md
+
+## Support
+
+For issues and questions, please refer to the documentation or create an issue in the repository.

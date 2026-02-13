@@ -1,0 +1,20 @@
+{
+  "name": "@store-platform/e2e-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-End Tests for Store Provisioning Platform",
+  "scripts": {
+    "test": "cypress run",
+    "test:headed": "cypress run --headed",
+    "test:chrome": "cypress run --browser chrome",
+    "test:firefox": "cypress run --browser firefox",
+    "open": "cypress open",
+    "cy:verify": "cypress verify",
+    "lint": "eslint cypress --ext .js,.ts"
+  },
+  "devDependencies": {
+    "cypress": "^13.6.0",
+    "eslint-plugin-cypress": "^2.15.0",
+    "typescript": "^5.3.0"
+  }
+}

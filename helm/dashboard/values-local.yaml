@@ -1,0 +1,74 @@
+# Store Platform - Local Development Values
+# Optimized for k3d/kind local Kubernetes clusters
+# Reference: TECHNICAL_REQUIREMENTS.md, HELM_CHART_DESIGN.md
+
+global:
+  environment: local
+  baseDomain: 127.0.0.1.nip.io
+  storageClass: standard
+  certIssuer: selfsigned
+
+# Dashboard - Single replica for local
+dashboard:
+  replicaCount: 1
+  
+  resources:
+    limits:
+      cpu: 250m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  
+  env:
+    LOG_LEVEL: debug
+
+# API - Single replica for local
+api:
+  replicaCount: 1
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  env:
+    LOG_LEVEL: debug
+    DEBUG: "true"
+
+# PostgreSQL - Minimal for local
+postgresql:
+  primary:
+    persistence:
+      size: 2Gi
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 250m
+      requests:
+        memory: 128Mi
+        cpu: 100m
+
+# Redis - Minimal for local
+redis:
+  master:
+    persistence:
+      size: 1Gi
+    resources:
+      limits:
+        memory: 128Mi
+        cpu: 100m
+      requests:
+        memory: 64Mi
+        cpu: 50m
+
+# Disable autoscaling in local
+autoscaling:
+  enabled: false
+
+# Disable PDB in local
+podDisruptionBudget:
+  enabled: false
